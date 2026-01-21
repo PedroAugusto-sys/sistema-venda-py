@@ -1,10 +1,10 @@
+import json
 from PySide6.QtWidgets import (
     QHBoxLayout, QVBoxLayout, QLabel,
     QPushButton, QListWidget, QMessageBox, QDialog, QInputDialog, 
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-from utils.file_utils import load_json, save_json
 
 class ProductManager(QDialog):
     def __init__(self, parent, products_file="data/products.json"):
@@ -27,6 +27,7 @@ class ProductManager(QDialog):
 
         self.list_widget = QListWidget()
 
+        # Buttons row
         btn_add = QPushButton("Adicionar")
         btn_edit = QPushButton("Editar")
         btn_delete = QPushButton("Deletar")
@@ -44,27 +45,36 @@ class ProductManager(QDialog):
         layout.addWidget(self.list_widget)
         layout.addLayout(btn_row)
 
+    # -----------------------------
+    # LOAD PRODUCTS TO LIST
+    # -----------------------------
     def load_list(self):
         self.list_widget.clear()
 
         try:
-            self.products = load_json(self.products_file, [])
-        except Exception:
+            with open(self.products_file, "r") as f:
+                self.products = json.load(f)
+        except:
             self.products = []
 
         for product in self.products:
             name = product["name"]
             price = product["price"]
-            stock = product.get("stock", 0)
-            self.list_widget.addItem(f"{name} - R$ {price:.2f} | Estoque: {stock}")
+            self.list_widget.addItem(f"{name} - R$ {price:.2f}")
 
+    # -----------------------------
+    # SAVE PRODUCTS
+    # -----------------------------
     def save_products(self):
-        for product in self.products:
-            product.setdefault("stock", 0)
-        save_json(self.products_file, self.products)
+        with open(self.products_file, "w") as f:
+            json.dump(self.products, f, indent=4)
 
+        # Refresh main window grid
         self.parent.load_products(self.parent.grid_layout)
 
+    # -----------------------------
+    # ADD PRODUCT
+    # -----------------------------
     def add_product(self):
         name, ok1 = QInputDialog.getText(self, "Adicionar Produto", "Nome:")
         if not ok1 or name.strip() == "":
@@ -74,14 +84,13 @@ class ProductManager(QDialog):
         if not ok2:
             return
 
-        stock, ok3 = QInputDialog.getInt(self, "Adicionar Produto", "Estoque:", 0, 0, 100000, 1)
-        if not ok3:
-            return
-
-        self.products.append({"name": name, "price": price, "stock": stock})
+        self.products.append({"name": name, "price": price})
         self.save_products()
         self.load_list()
 
+    # -----------------------------
+    # EDIT PRODUCT
+    # -----------------------------
     def edit_product(self):
         selected = self.list_widget.currentRow()
         if selected < 0:
@@ -99,16 +108,13 @@ class ProductManager(QDialog):
         if not ok2:
             return
 
-        stock, ok3 = QInputDialog.getInt(
-            self, "Editar Produto", "Estoque:", old.get("stock", 0), 0, 100000, 1
-        )
-        if not ok3:
-            return
-
-        self.products[selected] = {"name": name, "price": price, "stock": stock}
+        self.products[selected] = {"name": name, "price": price}
         self.save_products()
         self.load_list()
 
+    # -----------------------------
+    # DELETE PRODUCT
+    # -----------------------------
     def delete_product(self):
         selected = self.list_widget.currentRow()
         if selected < 0:
