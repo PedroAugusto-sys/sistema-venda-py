@@ -1,0 +1,50 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.venv/
+venv/
+env/
+data/*.json
+logs/
+*.bak
+# ----------------------
+# Virtual environments
+# ----------------------
+.venv/
+venv/
+
+# ----------------------
+# Python cache / builds
+# ----------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ----------------------
+# OS generated files
+# ----------------------
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# ----------------------
+# IDE / Editor files
+# ----------------------
+.vscode/
+.idea/
+
+# ----------------------
+# Project runtime data
+# ----------------------
+data/*.json
+
+# ----------------------
+# Logs / temp
+# ----------------------
+*.log
