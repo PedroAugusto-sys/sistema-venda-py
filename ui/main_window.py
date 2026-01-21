@@ -1,13 +1,18 @@
 import os
 import json
+import subprocess
+import platform
 from datetime import datetime
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from PIL import Image, ImageDraw
 
 # Importar managers (ainda usando PySide6, mas podemos adaptar depois)
 from managers.product_manager import ProductManager
 from managers.client_manager import ClientManager
+from widgets.company_dialog import CompanyDialog
+from widgets.confirmation_dialog import ConfirmationDialog
+from widgets.alert_dialog import AlertDialog
 
 # Configuração do CustomTkinter
 ctk.set_appearance_mode("dark")
@@ -29,14 +34,18 @@ class MainWindow(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        # Configurações da janela
-        self.title("Cantina Colégio Ativa")
-        self.geometry("1400x800")
-        self.minsize(1000, 600)
-        
         # Caminhos dos arquivos
         self.products_path = "data/products.json"
         self.clients_path = "data/clients.json"
+        self.company_path = "data/company.json"
+        
+        # Carregar informações da empresa
+        self.company_data = self.load_company_data()
+        
+        # Configurações da janela
+        self.title(self.company_data.get("name", "Cantina Colégio Ativa"))
+        self.geometry("1400x800")
+        self.minsize(1000, 600)
         
         # Estado da aplicação
         self.total = 0.0
@@ -71,6 +80,11 @@ class MainWindow(ctk.CTk):
         # Focar na janela
         self.focus_set()
     
+    def show_alert(self, title, message, alert_type="warning"):
+        """Mostra diálogo de alerta estilizado"""
+        dialog = AlertDialog(self, title, message, alert_type)
+        self.wait_window(dialog)
+    
     def create_sidebar(self):
         """Cria a sidebar esquerda (35% da tela)"""
         # Frame principal da sidebar
@@ -93,13 +107,19 @@ class MainWindow(ctk.CTk):
         header = ctk.CTkFrame(sidebar, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 30))
         
-        title = ctk.CTkLabel(
+        # Título clicável
+        self.title_label = ctk.CTkLabel(
             header,
-            text="Cantina Colégio Ativa",
+            text=self.company_data.get("name", "Cantina Colégio Ativa"),
             font=ctk.CTkFont(size=28, weight="bold"),
-            text_color=COLORS["text_light"]
+            text_color=COLORS["text_light"],
+            cursor="hand2"
         )
-        title.pack()
+        self.title_label.pack()
+        self.title_label.bind("<Button-1>", lambda e: self.edit_company_info())
+        
+        # Atualizar título da janela também
+        self.title(self.company_data.get("name", "Cantina Colégio Ativa"))
         
         # Seção de Cliente
         client_section = ctk.CTkFrame(sidebar, fg_color="transparent")
@@ -125,6 +145,13 @@ class MainWindow(ctk.CTk):
         )
         self.client_combo.grid(row=1, column=0, sticky="ew", pady=(0, 15))
         self.client_combo.set("Selecione o estudante")
+        
+        # Bind para atualizar quando o texto mudar (caso digite manualmente)
+        # CustomTkinter usa eventos diferentes
+        try:
+            self.client_combo.bind("<KeyRelease>", lambda e: self.after(100, self.on_client_text_changed))
+        except:
+            pass
         
         # Card de saldo
         self.balance_card = ctk.CTkFrame(
@@ -175,7 +202,7 @@ class MainWindow(ctk.CTk):
         cart_section = ctk.CTkFrame(sidebar, fg_color="transparent")
         cart_section.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
         cart_section.grid_columnconfigure(0, weight=1)
-        cart_section.grid_rowconfigure(1, weight=1)
+        cart_section.grid_rowconfigure(1, weight=1, minsize=150)  # Altura mínima para garantir visibilidade
         
         cart_label = ctk.CTkLabel(
             cart_section,
@@ -185,14 +212,20 @@ class MainWindow(ctk.CTk):
         )
         cart_label.grid(row=0, column=0, sticky="w", pady=(0, 10))
         
-        # Frame scrollável do carrinho (sem altura fixa para ser responsivo)
+        # Frame scrollável do carrinho com altura mínima garantida
+        # Usar min_height através de configure após criação
         self.cart_scroll = ctk.CTkScrollableFrame(
             cart_section,
             corner_radius=15,
-            fg_color=COLORS["bg_dark"]
+            fg_color=COLORS["bg_dark"],
+            scrollbar_button_color=COLORS["bg_panel"],
+            scrollbar_button_hover_color="#3a3a3a"
         )
         self.cart_scroll.grid(row=1, column=0, sticky="nsew", pady=(0, 10))
         self.cart_scroll.grid_columnconfigure(0, weight=1)
+        
+        # Garantir altura mínima visível (150px)
+        # Isso será respeitado pelo grid_rowconfigure com minsize
         
         # Botões de controle do carrinho
         cart_controls = ctk.CTkFrame(cart_section, fg_color="transparent")
@@ -232,17 +265,6 @@ class MainWindow(ctk.CTk):
             command=self.increase_selected_item
         )
         self.btn_increase.pack(side="left", padx=(0, 5))
-        
-        self.btn_clear = ctk.CTkButton(
-            cart_controls,
-            text="Limpar",
-            font=ctk.CTkFont(size=12),
-            corner_radius=15,
-            width=80,
-            height=35,
-            command=self.clear_cart
-        )
-        self.btn_clear.pack(side="left")
         
         # Métodos de Pagamento
         payment_section = ctk.CTkFrame(sidebar, fg_color="transparent")
@@ -303,17 +325,35 @@ class MainWindow(ctk.CTk):
         )
         self.total_value_label.grid(row=1, column=0, sticky="w", pady=(0, 20))
         
-        self.btn_finish = ctk.CTkButton(
-            footer,
-            text="FINALIZAR VENDA (F12)",
-            font=ctk.CTkFont(size=18, weight="bold"),
+        # Botões de ação
+        buttons_frame = ctk.CTkFrame(footer, fg_color="transparent")
+        buttons_frame.grid(row=2, column=0, sticky="ew", pady=(0, 0))
+        buttons_frame.grid_columnconfigure(0, weight=1)
+        buttons_frame.grid_columnconfigure(1, weight=1)
+        
+        self.btn_receipt = ctk.CTkButton(
+            buttons_frame,
+            text="📄 Emitir Comprovante",
+            font=ctk.CTkFont(size=14, weight="bold"),
             corner_radius=15,
-            height=60,
+            height=55,
+            fg_color=COLORS["bg_panel"],
+            hover_color="#333333",
+            command=self.generate_receipt
+        )
+        self.btn_receipt.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        
+        self.btn_finish = ctk.CTkButton(
+            buttons_frame,
+            text="✓ Finalizar (F12)",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            corner_radius=15,
+            height=55,
             fg_color=COLORS["green"],
             hover_color="#26c463",
             command=self.finish_order
         )
-        self.btn_finish.grid(row=2, column=0, sticky="ew")
+        self.btn_finish.grid(row=0, column=1, sticky="ew", padx=(5, 0))
         
         # Menu superior (simulado com botões)
         menu_frame = ctk.CTkFrame(sidebar, fg_color="transparent", height=40)
@@ -419,7 +459,9 @@ class MainWindow(ctk.CTk):
         self.products_scroll = ctk.CTkScrollableFrame(
             products_frame,
             corner_radius=0,
-            fg_color="transparent"
+            fg_color="transparent",
+            scrollbar_button_color=COLORS["bg_panel"],
+            scrollbar_button_hover_color="#3a3a3a"
         )
         self.products_scroll.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
         self.products_scroll.grid_columnconfigure(0, weight=1)
@@ -440,6 +482,11 @@ class MainWindow(ctk.CTk):
         try:
             with open(self.products_path, "r", encoding="utf-8") as f:
                 self.all_products = json.load(f)
+            
+            # Validar e limitar preços dos produtos existentes
+            for product in self.all_products:
+                if "price" in product and product["price"] > 9999:
+                    product["price"] = 9999
         except Exception as e:
             print(f"Erro ao carregar produtos: {e}")
             self.all_products = []
@@ -528,6 +575,7 @@ class MainWindow(ctk.CTk):
             name = product.get("name")
             price = product.get("price")
             icon = product.get("icon", "📦")
+            category = product.get("category", "Salgados")
             
             if name is None or price is None:
                 continue
@@ -538,7 +586,8 @@ class MainWindow(ctk.CTk):
                 self.products_grid,
                 name=name,
                 price=price,
-                icon=icon
+                icon=icon,
+                category=category
             )
             card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
             
@@ -600,6 +649,59 @@ class MainWindow(ctk.CTk):
         
         self.display_products()
     
+    def load_company_data(self):
+        """Carrega informações da empresa do arquivo JSON"""
+        if not os.path.exists(self.company_path):
+            # Retornar valores padrão se arquivo não existir
+            return {
+                "name": "Cantina Colégio Ativa",
+                "cnpj": "",
+                "phone": "",
+                "address": ""
+            }
+        
+        try:
+            with open(self.company_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data
+        except Exception as e:
+            print(f"Erro ao carregar dados da empresa: {e}")
+            return {
+                "name": "Cantina Colégio Ativa",
+                "cnpj": "",
+                "phone": "",
+                "address": ""
+            }
+    
+    def save_company_data(self):
+        """Salva informações da empresa no arquivo JSON"""
+        # Garantir que o diretório existe
+        os.makedirs("data", exist_ok=True)
+        
+        try:
+            with open(self.company_path, "w", encoding="utf-8") as f:
+                json.dump(self.company_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            self.show_alert("Erro", f"Erro ao salvar dados da empresa: {e}", "error")
+    
+    def edit_company_info(self):
+        """Abre diálogo para editar informações da empresa"""
+        dialog = CompanyDialog(self, self.company_data)
+        self.wait_window(dialog)
+        
+        if dialog.result:
+            self.company_data = dialog.result
+            self.save_company_data()
+            
+            # Atualizar título na interface
+            if hasattr(self, 'title_label'):
+                self.title_label.configure(text=self.company_data.get("name", "Cantina Colégio Ativa"))
+            
+            # Atualizar título da janela
+            self.title(self.company_data.get("name", "Cantina Colégio Ativa"))
+            
+            self.show_alert("Sucesso", "Informações da empresa atualizadas com sucesso!", "info")
+    
     def load_clients(self):
         """Carrega clientes do arquivo JSON"""
         if not os.path.exists(self.clients_path):
@@ -616,16 +718,36 @@ class MainWindow(ctk.CTk):
         client_names = sorted(self.clients_data.keys())
         self.client_combo.configure(values=client_names)
     
-    def on_client_selected(self, choice):
-        """Callback quando cliente é selecionado"""
-        if choice and choice in self.clients_data:
-            self.current_client = choice
-            client_data = self.clients_data[choice]
+    def refresh_client_info(self):
+        """Atualiza as informações do cliente selecionado"""
+        if self.current_client and self.current_client in self.clients_data:
+            client_data = self.clients_data[self.current_client]
             self.client_credits = float(client_data.get("credits", 0.0))
             
             # Atualizar UI
-            self.balance_name_label.configure(text=choice)
+            self.balance_name_label.configure(text=self.current_client)
             self.balance_value_label.configure(text=f"R$ {self.client_credits:.2f}")
+        else:
+            self.client_credits = 0.0
+            if not self.current_client:
+                self.balance_name_label.configure(text="Estudante")
+                self.balance_value_label.configure(text="R$ 0,00")
+    
+    def on_client_text_changed(self):
+        """Atualiza quando o texto do ComboBox muda"""
+        choice = self.client_combo.get().strip()
+        if choice and choice in self.clients_data:
+            self.current_client = choice
+            self.refresh_client_info()
+    
+    def on_client_selected(self, choice):
+        """Callback quando cliente é selecionado"""
+        # Recarregar dados do arquivo para garantir que está atualizado
+        self.load_clients()
+        
+        if choice and choice in self.clients_data:
+            self.current_client = choice
+            self.refresh_client_info()
         else:
             self.current_client = None
             self.client_credits = 0.0
@@ -634,6 +756,23 @@ class MainWindow(ctk.CTk):
     
     def add_to_cart(self, name, price):
         """Adiciona produto ao carrinho"""
+        # Calcular novo total antes de adicionar
+        current_total = sum(item["price"] * item["qty"] for item in self.cart.values())
+        new_total = current_total + price
+        
+        # Validar se o total não ultrapassa 9999
+        if new_total > 9999:
+            self.show_alert(
+                "Limite Excedido",
+                f"O total da compra não pode ultrapassar R$ 9.999,00!\n\n"
+                f"Total atual: R$ {current_total:.2f}\n"
+                f"Tentativa de adicionar: R$ {price:.2f}\n"
+                f"Total seria: R$ {new_total:.2f}\n\n"
+                f"Limite máximo permitido: R$ 9.999,00",
+                "warning"
+            )
+            return
+        
         if name in self.cart:
             self.cart[name]["qty"] += 1
         else:
@@ -648,6 +787,18 @@ class MainWindow(ctk.CTk):
         for widget in self.cart_scroll.winfo_children():
             widget.destroy()
         
+        # Se o carrinho estiver vazio, mostrar mensagem
+        if not self.cart:
+            empty_label = ctk.CTkLabel(
+                self.cart_scroll,
+                text="Carrinho vazio",
+                font=ctk.CTkFont(size=12),
+                text_color=COLORS["text_gray"],
+                fg_color="transparent"
+            )
+            empty_label.pack(pady=20)
+            return
+        
         # Adicionar itens
         for name, item in self.cart.items():
             price = item["price"]
@@ -656,48 +807,62 @@ class MainWindow(ctk.CTk):
             
             # Determinar cor do frame (selecionado ou não)
             is_selected = (self.selected_cart_item == name)
-            frame_color = COLORS["green"] if is_selected else COLORS["bg_dark"]
-            border_color = COLORS["green"] if is_selected else COLORS["bg_dark"]
+            frame_color = COLORS["green"] if is_selected else COLORS["bg_panel"]
+            border_color = COLORS["green"] if is_selected else "#3a3a3a"
             
             item_frame = ctk.CTkFrame(
                 self.cart_scroll,
                 corner_radius=10,
                 fg_color=frame_color,
-                border_width=2 if is_selected else 0,
-                border_color=border_color
+                border_width=2 if is_selected else 1,
+                border_color=border_color,
+                height=50  # Altura mínima para garantir visibilidade
             )
-            item_frame.pack(fill="x", padx=5, pady=5)
+            item_frame.pack(fill="x", padx=5, pady=3)
             item_frame.grid_columnconfigure(0, weight=1)
+            item_frame.grid_columnconfigure(1, weight=0)
             
-            # Bind click para seleção
-            item_frame.bind("<Button-1>", lambda e, n=name: self.select_cart_item(n))
+            # Bind clique simples para remover uma unidade
+            item_frame.bind("<Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
+            # Bind duplo clique para subtrair unidade (mantido para compatibilidade)
+            item_frame.bind("<Double-Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
             
             item_text = f"{name} (x{qty})"
             item_label = ctk.CTkLabel(
                 item_frame,
                 text=item_text,
-                font=ctk.CTkFont(size=12),
+                font=ctk.CTkFont(size=11),
                 anchor="w",
                 fg_color="transparent"
             )
-            item_label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
-            item_label.bind("<Button-1>", lambda e, n=name: self.select_cart_item(n))
+            item_label.grid(row=0, column=0, sticky="w", padx=8, pady=8)
+            item_label.bind("<Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
+            item_label.bind("<Double-Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
             
             price_text = f"R$ {subtotal:.2f}"
             price_label = ctk.CTkLabel(
                 item_frame,
                 text=price_text,
-                font=ctk.CTkFont(size=12, weight="bold"),
+                font=ctk.CTkFont(size=11, weight="bold"),
                 text_color=COLORS["green"] if not is_selected else COLORS["bg_dark"],
                 anchor="e",
                 fg_color="transparent"
             )
-            price_label.grid(row=0, column=1, sticky="e", padx=10, pady=5)
-            price_label.bind("<Button-1>", lambda e, n=name: self.select_cart_item(n))
+            price_label.grid(row=0, column=1, sticky="e", padx=8, pady=8)
+            price_label.bind("<Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
+            price_label.bind("<Double-Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
+        
+        # Forçar atualização do scroll
+        self.cart_scroll.update()
     
     def update_total(self):
         """Atualiza o total da venda"""
         self.total = sum(item["price"] * item["qty"] for item in self.cart.values())
+        
+        # Garantir que o total não ultrapasse 9999 (segurança extra)
+        if self.total > 9999:
+            self.total = 9999
+        
         self.total_value_label.configure(text=f"R$ {self.total:.2f}")
         
         # Efeito visual de atualização
@@ -725,6 +890,18 @@ class MainWindow(ctk.CTk):
             self.update_cart_display()
             self.update_total()
     
+    def decrease_item_quantity(self, item_name):
+        """Diminui quantidade de um item específico (usado no duplo clique)"""
+        if item_name in self.cart:
+            if self.cart[item_name]["qty"] > 1:
+                self.cart[item_name]["qty"] -= 1
+            else:
+                del self.cart[item_name]
+                if self.selected_cart_item == item_name:
+                    self.selected_cart_item = None
+            self.update_cart_display()
+            self.update_total()
+    
     def decrease_selected_item(self):
         """Diminui quantidade do item selecionado"""
         if self.selected_cart_item and self.selected_cart_item in self.cart:
@@ -747,14 +924,34 @@ class MainWindow(ctk.CTk):
     
     def increase_selected_item(self):
         """Aumenta quantidade do item selecionado"""
+        item_to_increase = None
+        
         if self.selected_cart_item and self.selected_cart_item in self.cart:
-            self.cart[self.selected_cart_item]["qty"] += 1
-            self.update_cart_display()
-            self.update_total()
+            item_to_increase = self.selected_cart_item
         elif self.cart:
             # Se nenhum item selecionado, aumenta o último
-            last_item = list(self.cart.keys())[-1]
-            self.cart[last_item]["qty"] += 1
+            item_to_increase = list(self.cart.keys())[-1]
+        
+        if item_to_increase:
+            # Calcular novo total antes de aumentar
+            current_total = sum(item["price"] * item["qty"] for item in self.cart.values())
+            item_price = self.cart[item_to_increase]["price"]
+            new_total = current_total + item_price
+            
+            # Validar se o total não ultrapassa 9999
+            if new_total > 9999:
+                self.show_alert(
+                    "Limite Excedido",
+                    f"O total da compra não pode ultrapassar R$ 9.999,00!\n\n"
+                    f"Total atual: R$ {current_total:.2f}\n"
+                    f"Tentativa de adicionar mais: R$ {item_price:.2f}\n"
+                    f"Total seria: R$ {new_total:.2f}\n\n"
+                    f"Limite máximo permitido: R$ 9.999,00",
+                    "warning"
+                )
+                return
+            
+            self.cart[item_to_increase]["qty"] += 1
             self.update_cart_display()
             self.update_total()
     
@@ -779,19 +976,135 @@ class MainWindow(ctk.CTk):
             )
             self.selected_payment = method
     
-    def finish_order(self):
-        """Finaliza a venda"""
+    def open_pdf(self, file_path):
+        """Abre o PDF no visualizador padrão do sistema"""
+        try:
+            if platform.system() == 'Windows':
+                os.startfile(file_path)
+            elif platform.system() == 'Darwin':  # macOS
+                subprocess.run(['open', file_path])
+            else:  # Linux
+                subprocess.run(['xdg-open', file_path])
+        except Exception as e:
+            print(f"Erro ao abrir PDF: {e}")
+    
+    def generate_receipt(self, open_after=False):
+        """Gera comprovante de pagamento em PDF"""
         if not self.current_client:
-            messagebox.showwarning("Atenção", "Selecione um cliente primeiro!")
+            self.show_alert("Atenção", "Selecione um cliente primeiro!")
             return
         
         if not self.cart:
-            messagebox.showwarning("Atenção", "O carrinho está vazio!")
+            self.show_alert("Atenção", "O carrinho está vazio!")
             return
         
         if not self.selected_payment:
-            messagebox.showwarning("Atenção", "Selecione um método de pagamento!")
+            self.show_alert("Atenção", "Selecione um método de pagamento!")
             return
+        
+        # Construir ordem
+        items = []
+        for name, item in self.cart.items():
+            items.append({
+                "name": name,
+                "price": item["price"],
+                "quantity": item["qty"]
+            })
+        
+        order = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "items": items,
+            "total": self.total,
+            "payment_method": self.selected_payment
+        }
+        
+        # Solicitar local para salvar
+        client_name_safe = self.current_client.replace("/", "-").replace("\\", "-")
+        default_filename = f"comprovante_{client_name_safe}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
+            initialfile=default_filename,
+            title="Salvar Comprovante"
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            from reports.receipt_generator import generate_receipt_pdf
+            
+            client_data = self.clients_data.get(self.current_client, {})
+            generate_receipt_pdf(
+                self.current_client, 
+                client_data, 
+                order, 
+                file_path,
+                company_data=self.company_data
+            )
+            
+            # Abrir PDF automaticamente se solicitado
+            if open_after:
+                self.open_pdf(file_path)
+            else:
+                # Criar diálogo customizado que abre o PDF ao clicar OK
+                dialog = AlertDialog(
+                    self,
+                    "Comprovante Gerado",
+                    f"Comprovante salvo com sucesso!\n\nLocal: {file_path}",
+                    "info",
+                    show_back_button=False,
+                    on_ok_callback=lambda: self.open_pdf(file_path)
+                )
+                self.wait_window(dialog)
+        except Exception as e:
+            self.show_alert(
+                "Erro",
+                f"Erro ao gerar comprovante:\n{str(e)}",
+                "error"
+            )
+    
+    def finish_order(self):
+        """Finaliza a venda"""
+        if not self.current_client:
+            self.show_alert("Atenção", "Selecione um cliente primeiro!")
+            return
+        
+        if not self.cart:
+            self.show_alert("Atenção", "O carrinho está vazio!")
+            return
+        
+        if not self.selected_payment:
+            self.show_alert("Atenção", "Selecione um método de pagamento!")
+            return
+        
+        # Validar crédito do aluno se método de pagamento for "Crédito Aluno"
+        if self.selected_payment == "Crédito Aluno":
+            # Atualizar informações do cliente para garantir dados atuais
+            self.load_clients()
+            self.refresh_client_info()
+            
+            # Verificar se o cliente tem crédito suficiente
+            if self.client_credits < self.total:
+                saldo_faltante = self.total - self.client_credits
+                # Mostrar alerta com botão de voltar ao carrinho
+                dialog = AlertDialog(
+                    self,
+                    "Crédito Insuficiente",
+                    f"O aluno {self.current_client} não possui crédito suficiente!\n\n"
+                    f"Saldo disponível: R$ {self.client_credits:.2f}\n"
+                    f"Valor da compra: R$ {self.total:.2f}\n"
+                    f"Saldo faltante: R$ {saldo_faltante:.2f}\n\n"
+                    f"Por favor, adicione crédito ao aluno ou escolha outro método de pagamento.",
+                    "error",
+                    show_back_button=True
+                )
+                self.wait_window(dialog)
+                
+                # Se clicou em voltar, não fazer nada (deixa o usuário mexer no carrinho)
+                # Se clicou em OK, apenas fecha o diálogo
+                return
         
         # Construir ordem
         items = []
@@ -812,13 +1125,18 @@ class MainWindow(ctk.CTk):
         # Salvar venda
         self.add_order_to_client(self.current_client, order)
         
-        # Mensagem de sucesso
-        messagebox.showinfo(
-            "Venda Finalizada",
-            f"Venda finalizada para {self.current_client}\n"
-            f"Total: R$ {self.total:.2f}\n"
-            f"Método: {self.selected_payment}"
+        # Diálogo de confirmação estilizado
+        dialog = ConfirmationDialog(
+            self,
+            self.current_client,
+            self.total,
+            self.selected_payment
         )
+        self.wait_window(dialog)
+        
+        if dialog.result:
+            # Gerar e abrir comprovante
+            self.generate_receipt(open_after=True)
         
         # Limpar carrinho
         self.clear_cart()
@@ -858,10 +1176,10 @@ class MainWindow(ctk.CTk):
         with open(self.clients_path, "w", encoding="utf-8") as f:
             json.dump(self.clients_data, f, indent=4, ensure_ascii=False)
         
-        # Recarregar
+        # Recarregar e atualizar informações do cliente
         self.load_clients()
         if self.current_client:
-            self.on_client_selected(self.current_client)
+            self.refresh_client_info()
     
     def open_product_manager(self):
         """Abre gerenciador de produtos (PySide6)"""
@@ -888,7 +1206,7 @@ class MainWindow(ctk.CTk):
             # Recarregar produtos
             self.load_products()
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível abrir o gerenciador: {e}")
+            self.show_alert("Erro", f"Não foi possível abrir o gerenciador: {e}", "error")
     
     def open_client_manager(self):
         """Abre gerenciador de clientes (PySide6)"""
@@ -909,7 +1227,16 @@ class MainWindow(ctk.CTk):
             manager = ClientManager(dummy_parent)
             manager.exec()
             
-            # Recarregar clientes
+            # Recarregar clientes após fechar o gerenciador
             self.load_clients()
+            
+            # Atualizar informações do cliente selecionado se houver
+            # Também atualizar o ComboBox caso tenha sido adicionado novo cliente
+            if self.current_client:
+                self.refresh_client_info()
+            else:
+                # Se não havia cliente selecionado, atualizar o ComboBox
+                client_names = sorted(self.clients_data.keys())
+                self.client_combo.configure(values=client_names)
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível abrir o gerenciador: {e}")
+            self.show_alert("Erro", f"Não foi possível abrir o gerenciador: {e}", "error")

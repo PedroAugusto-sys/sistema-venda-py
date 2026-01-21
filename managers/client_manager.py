@@ -47,6 +47,42 @@ class ClientManager(QDialog):
                 border: 1px solid #3a3a3a;
                 gridline-color: #3a3a3a;
             }}
+            QScrollBar:vertical {{
+                background-color: {COLORS["bg_panel"]};
+                width: 15px;
+                border: none;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: #3a3a3a;
+                min-height: 20px;
+                border-radius: 7px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: #4a4a4a;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                border: none;
+                background: none;
+                height: 0px;
+            }}
+            QScrollBar:horizontal {{
+                background-color: {COLORS["bg_panel"]};
+                height: 15px;
+                border: none;
+            }}
+            QScrollBar::handle:horizontal {{
+                background-color: #3a3a3a;
+                min-width: 20px;
+                border-radius: 7px;
+            }}
+            QScrollBar::handle:horizontal:hover {{
+                background-color: #4a4a4a;
+            }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+                border: none;
+                background: none;
+                width: 0px;
+            }}
             QHeaderView::section {{
                 background-color: {COLORS["bg_panel"]};
                 color: {COLORS["text_light"]};
@@ -209,6 +245,11 @@ class ClientManager(QDialog):
                 background-color: {COLORS["bg_dark"]};
                 color: {COLORS["text_light"]};
             }}
+            QMessageBox QLabel {{
+                background-color: {COLORS["bg_dark"]};
+                color: {COLORS["text_light"]};
+                min-width: 400px;
+            }}
             QPushButton {{
                 background-color: {COLORS["green"]};
                 color: {COLORS["bg_dark"]};
@@ -252,6 +293,15 @@ class ClientManager(QDialog):
                     background-color: {COLORS["bg_dark"]};
                     color: {COLORS["text_light"]};
                 }}
+                QMessageBox * {{
+                    background-color: {COLORS["bg_dark"]};
+                    color: {COLORS["text_light"]};
+                }}
+                QMessageBox QLabel {{
+                    background-color: {COLORS["bg_dark"]};
+                    color: {COLORS["text_light"]} !important;
+                    min-width: 400px;
+                }}
                 QPushButton {{
                     background-color: {COLORS["green"]};
                     color: {COLORS["bg_dark"]};
@@ -279,6 +329,11 @@ class ClientManager(QDialog):
             QMessageBox {{
                 background-color: {COLORS["bg_dark"]};
                 color: {COLORS["text_light"]};
+            }}
+            QMessageBox QLabel {{
+                background-color: {COLORS["bg_dark"]};
+                color: {COLORS["text_light"]};
+                min-width: 400px;
             }}
             QPushButton {{
                 background-color: {COLORS["green"]};
@@ -316,6 +371,11 @@ class ClientManager(QDialog):
             QMessageBox {{
                 background-color: {COLORS["bg_dark"]};
                 color: {COLORS["text_light"]};
+            }}
+            QMessageBox QLabel {{
+                background-color: {COLORS["bg_dark"]};
+                color: {COLORS["text_light"]};
+                min-width: 400px;
             }}
             QPushButton {{
                 background-color: {COLORS["green"]};

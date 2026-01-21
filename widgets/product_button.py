@@ -1,24 +1,48 @@
 import customtkinter as ctk
 from PIL import Image, ImageTk
 import os
+import hashlib
+
+# Cores por categoria (geradas de forma determinística mas variadas)
+CATEGORY_COLORS = {
+    "Salgados": ["#3a5f7a", "#4a6b8a", "#5a7b9a", "#6a8baa", "#7a9bba"],
+    "Doces": ["#8b5a7a", "#9b6a8a", "#ab7a9a", "#bb8aaa", "#cb9aba"],
+    "Bebidas": ["#5a7a9a", "#6a8aaa", "#7a9aba", "#8aaaca", "#9abada"],
+    "Saudáveis": ["#5a9a7a", "#6aaa8a", "#7aba9a", "#8acaaa", "#9adaaa"]
+}
+
+def get_category_color(category, name):
+    """Gera uma cor baseada na categoria e nome do produto (determinística)"""
+    if category not in CATEGORY_COLORS:
+        category = "Salgados"  # Fallback
+    
+    # Usar hash do nome para selecionar cor de forma determinística
+    hash_value = int(hashlib.md5(name.encode()).hexdigest(), 16)
+    color_index = hash_value % len(CATEGORY_COLORS[category])
+    
+    return CATEGORY_COLORS[category][color_index]
 
 class ProductCard(ctk.CTkFrame):
     """Card de produto moderno com CustomTkinter"""
     
-    def __init__(self, parent, name, price, icon="📦", image_path=None, **kwargs):
+    def __init__(self, parent, name, price, icon="📦", category="Salgados", image_path=None, **kwargs):
         super().__init__(parent, **kwargs)
         
         self.name = name
         self.price = price
         self.icon = icon
+        self.category = category
         self.selected = False
         
-        # Configuração do card
+        # Gerar cor baseada na categoria
+        card_color = get_category_color(category, name)
+        
+        # Configuração do card com cor da categoria
         self.configure(
             corner_radius=15,
-            fg_color=("#2b2b2b", "#2b2b2b"),
+            fg_color=(card_color, card_color),
             border_width=2,
-            border_color=("#2b2b2b", "#2b2b2b")
+            border_color=(card_color, card_color)
         )
         
         # Layout interno - responsivo
@@ -66,12 +90,15 @@ class ProductCard(ctk.CTkFrame):
     def on_enter(self, event):
         """Efeito hover ao passar o mouse"""
         if not self.selected:
-            self.configure(border_color="#2ed573")
+            # Clarear a cor no hover
+            current_color = self.cget("fg_color")[0] if isinstance(self.cget("fg_color"), tuple) else self.cget("fg_color")
+            self.configure(border_color="#2ed573", border_width=3)
     
     def on_leave(self, event):
         """Remove efeito hover ao sair do mouse"""
         if not self.selected:
-            self.configure(border_color=("#2b2b2b", "#2b2b2b"))
+            card_color = get_category_color(self.category, self.name)
+            self.configure(border_color=(card_color, card_color), border_width=2)
     
     def select(self):
         """Marca o card como selecionado"""
@@ -81,4 +108,5 @@ class ProductCard(ctk.CTkFrame):
     def deselect(self):
         """Remove seleção do card"""
         self.selected = False
-        self.configure(border_color=("#2b2b2b", "#2b2b2b"), border_width=2)
+        card_color = get_category_color(self.category, self.name)
+        self.configure(border_color=(card_color, card_color), border_width=2)

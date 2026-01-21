@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QWidget, QScrollArea
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QDoubleValidator
 
 # Cores do tema escuro
 COLORS = {
@@ -132,8 +132,11 @@ class ProductDialog(QDialog):
         layout.addWidget(price_label)
         
         self.price_input = QLineEdit()
-        self.price_input.setPlaceholderText("0.00")
-        self.price_input.setValidator(None)  # Aceita números decimais
+        self.price_input.setPlaceholderText("0.00 (máx: 9999)")
+        # Validator para aceitar apenas números decimais até 9999
+        validator = QDoubleValidator(0.0, 9999.0, 2)
+        validator.setNotation(QDoubleValidator.StandardNotation)
+        self.price_input.setValidator(validator)
         layout.addWidget(self.price_input)
         
         # Categoria
@@ -293,6 +296,9 @@ class ProductDialog(QDialog):
         """Retorna os dados do produto"""
         try:
             price = float(self.price_input.text().replace(",", "."))
+            # Limitar preço máximo a 9999
+            if price > 9999:
+                price = 9999
         except ValueError:
             price = 0.0
         
