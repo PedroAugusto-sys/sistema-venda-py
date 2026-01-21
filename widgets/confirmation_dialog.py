@@ -86,54 +86,47 @@ class ConfirmationDialog(ctk.CTkToplevel):
         )
         method_label.pack(anchor="w", pady=5)
         
-        # Pergunta
-        question_label = ctk.CTkLabel(
-            main_frame,
-            text="Deseja emitir o comprovante agora?",
-            font=ctk.CTkFont(size=14),
-            text_color=COLORS["text_light"]
-        )
-        question_label.pack(pady=(0, 20))
-        
-        # Botões
+        # Botões - Posicionar no final do modal para garantir visibilidade
         buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        buttons_frame.pack(fill="x", padx=30, pady=(0, 20))
+        buttons_frame.pack(fill="x", side="bottom", padx=30, pady=(15, 25))
         buttons_frame.grid_columnconfigure(0, weight=1)
         buttons_frame.grid_columnconfigure(1, weight=1)
         
-        ok_btn = ctk.CTkButton(
+        # Botão Emitir Comprovante
+        receipt_btn = ctk.CTkButton(
             buttons_frame,
-            text="OK",
+            text="📄 Emitir Comprovante",
             font=ctk.CTkFont(size=14, weight="bold"),
             corner_radius=10,
-            height=40,
-            fg_color=COLORS["green"],
-            hover_color="#26c463",
-            command=self.no_action
+            height=45,
+            fg_color=COLORS["bg_panel"],
+            hover_color="#333333",
+            command=self.emit_receipt_action
         )
-        ok_btn.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        receipt_btn.grid(row=0, column=0, sticky="ew", padx=(0, 5))
         
-        yes_btn = ctk.CTkButton(
+        # Botão Finalizar
+        finish_btn = ctk.CTkButton(
             buttons_frame,
-            text="Sim",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            text="✓ Finalizar",
+            font=ctk.CTkFont(size=16, weight="bold"),
             corner_radius=10,
-            height=40,
+            height=45,
             fg_color=COLORS["green"],
             hover_color="#26c463",
-            command=self.yes_action
+            command=self.finish_action
         )
-        yes_btn.grid(row=0, column=1, sticky="ew", padx=(5, 0))
+        finish_btn.grid(row=0, column=1, sticky="ew", padx=(5, 0))
         
-        # Focar no botão Sim
-        yes_btn.focus()
+        # Focar no botão Finalizar
+        finish_btn.focus()
         
-        # Bind Enter para Sim e Escape para OK
-        self.bind("<Return>", lambda e: self.yes_action())
-        self.bind("<Escape>", lambda e: self.no_action())
+        # Bind Enter para Finalizar e Escape para Finalizar também
+        self.bind("<Return>", lambda e: self.finish_action())
+        self.bind("<Escape>", lambda e: self.finish_action())
         
-        # Definir geometria inicial antes de centralizar
-        self.geometry("450x300")
+        # Definir geometria inicial antes de centralizar - Altura aumentada para garantir visibilidade dos botões
+        self.geometry("500x420")
     
     def _center_on_screen(self):
         """Centraliza a janela no centro da tela"""
@@ -157,12 +150,12 @@ class ConfirmationDialog(ctk.CTkToplevel):
         except:
             pass
     
-    def yes_action(self):
-        """Ação quando clica em Sim"""
+    def emit_receipt_action(self):
+        """Ação quando clica em Emitir Comprovante"""
         self.result = True
         self.destroy()
     
-    def no_action(self):
-        """Ação quando clica em Não"""
+    def finish_action(self):
+        """Ação quando clica em Finalizar"""
         self.result = False
         self.destroy()

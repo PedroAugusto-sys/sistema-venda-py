@@ -13,6 +13,7 @@ from managers.client_manager import ClientManager
 from widgets.company_dialog import CompanyDialog
 from widgets.confirmation_dialog import ConfirmationDialog
 from widgets.alert_dialog import AlertDialog
+from widgets.sales_selection_dialog import SalesSelectionDialog
 
 # Configuração do CustomTkinter
 ctk.set_appearance_mode("dark")
@@ -45,7 +46,8 @@ class MainWindow(ctk.CTk):
         # Configurações da janela
         self.title(self.company_data.get("name", "Cantina Colégio Ativa"))
         self.geometry("1400x800")
-        self.minsize(1000, 600)
+        # Altura mínima aumentada para garantir que os botões do carrinho sempre fiquem visíveis
+        self.minsize(1000, 760)
         
         # Estado da aplicação
         self.total = 0.0
@@ -105,7 +107,7 @@ class MainWindow(ctk.CTk):
         
         # Header
         header = ctk.CTkFrame(sidebar, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 30))
+        header.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 20))
         
         # Título clicável
         self.title_label = ctk.CTkLabel(
@@ -123,7 +125,7 @@ class MainWindow(ctk.CTk):
         
         # Seção de Cliente
         client_section = ctk.CTkFrame(sidebar, fg_color="transparent")
-        client_section.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 20))
+        client_section.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 5))
         client_section.grid_columnconfigure(0, weight=1)
         
         client_label = ctk.CTkLabel(
@@ -159,10 +161,10 @@ class MainWindow(ctk.CTk):
             corner_radius=15,
             fg_color=COLORS["bg_dark"]
         )
-        self.balance_card.grid(row=2, column=0, sticky="ew", pady=(0, 20))
+        self.balance_card.grid(row=2, column=0, sticky="ew", pady=(0, 5))
         
         balance_content = ctk.CTkFrame(self.balance_card, fg_color="transparent")
-        balance_content.pack(fill="both", expand=True, padx=15, pady=15)
+        balance_content.pack(fill="both", expand=True, padx=10, pady=8)
         
         balance_icon = ctk.CTkLabel(
             balance_content,
@@ -200,9 +202,16 @@ class MainWindow(ctk.CTk):
         
         # Seção do Carrinho
         cart_section = ctk.CTkFrame(sidebar, fg_color="transparent")
-        cart_section.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        cart_section.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 10))
         cart_section.grid_columnconfigure(0, weight=1)
-        cart_section.grid_rowconfigure(1, weight=1, minsize=150)  # Altura mínima para garantir visibilidade
+        # Configurar rows: título (0), área scrollável (1), botões (2)
+        # Row 0: Título "CARRINHO" (não expande)
+        cart_section.grid_rowconfigure(0, weight=0)
+        # Row 1: ScrollableFrame (EXPANDE TOTAL) - Minsize de 120px para garantir que apareçam pelo menos 2 itens
+        # MAS: este minsize pode ser reduzido se necessário para manter os botões visíveis
+        cart_section.grid_rowconfigure(1, weight=1, minsize=80) 
+        # Row 2: Controles/Botões (NÃO EXPANDE, fica fixo embaixo) - GARANTE espaço mínimo de 45px
+        cart_section.grid_rowconfigure(2, weight=0, minsize=45)
         
         cart_label = ctk.CTkLabel(
             cart_section,
@@ -210,10 +219,9 @@ class MainWindow(ctk.CTk):
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color=COLORS["text_gray"]
         )
-        cart_label.grid(row=0, column=0, sticky="w", pady=(0, 10))
+        cart_label.grid(row=0, column=0, sticky="w", pady=(0, 8))
         
-        # Frame scrollável do carrinho com altura mínima garantida
-        # Usar min_height através de configure após criação
+        # Frame scrollável do carrinho que se adapta ao espaço disponível
         self.cart_scroll = ctk.CTkScrollableFrame(
             cart_section,
             corner_radius=15,
@@ -221,15 +229,14 @@ class MainWindow(ctk.CTk):
             scrollbar_button_color=COLORS["bg_panel"],
             scrollbar_button_hover_color="#3a3a3a"
         )
-        self.cart_scroll.grid(row=1, column=0, sticky="nsew", pady=(0, 10))
+        # Usar sticky="nsew" para preencher todo o espaço disponível e permitir scroll quando necessário
+        self.cart_scroll.grid(row=1, column=0, sticky="nsew", pady=(0, 8))
         self.cart_scroll.grid_columnconfigure(0, weight=1)
         
-        # Garantir altura mínima visível (150px)
-        # Isso será respeitado pelo grid_rowconfigure com minsize
-        
-        # Botões de controle do carrinho
+        # Botões de controle do carrinho - Sempre visíveis
         cart_controls = ctk.CTkFrame(cart_section, fg_color="transparent")
-        cart_controls.grid(row=2, column=0, sticky="ew", pady=(0, 20))
+        cart_controls.grid(row=2, column=0, sticky="nsew", pady=(5, 0))
+        cart_controls.grid_columnconfigure(0, weight=1)
         
         self.btn_remove = ctk.CTkButton(
             cart_controls,
@@ -268,7 +275,7 @@ class MainWindow(ctk.CTk):
         
         # Métodos de Pagamento
         payment_section = ctk.CTkFrame(sidebar, fg_color="transparent")
-        payment_section.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 20))
+        payment_section.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 10))
         
         payment_label = ctk.CTkLabel(
             payment_section,
@@ -296,7 +303,7 @@ class MainWindow(ctk.CTk):
                 font=ctk.CTkFont(size=11),
                 corner_radius=15,
                 width=100,
-                height=70,
+                height=55,
                 fg_color=COLORS["bg_dark"],
                 hover_color="#333333",
                 command=lambda m=method: self.select_payment_method(m)
@@ -546,12 +553,39 @@ class MainWindow(ctk.CTk):
             for i in range(columns):
                 self.products_grid.grid_columnconfigure(i, weight=1, uniform="col")
     
+    def adjust_total_font_size(self):
+        """Ajusta o tamanho da fonte do Total baseado na altura da janela"""
+        if not hasattr(self, 'total_value_label'):
+            return
+        
+        try:
+            # Obter altura atual da janela
+            window_height = self.winfo_height()
+            
+            # Se a janela está muito baixa (menos de 760px), reduzir fonte
+            if window_height < 760:
+                # Fonte menor: 28px
+                self.total_value_label.configure(
+                    font=ctk.CTkFont(size=28, weight="bold")
+                )
+            else:
+                # Fonte normal: 36px
+                self.total_value_label.configure(
+                    font=ctk.CTkFont(size=36, weight="bold")
+                )
+        except Exception as e:
+            # Se houver erro, manter fonte padrão
+            pass
+    
     def on_window_resize(self, event=None):
         """Callback quando a janela é redimensionada"""
         if event and event.widget == self:
             # Atualizar número de colunas
             old_columns = self.current_columns
             self.update_products_grid_columns()
+            
+            # Ajustar tamanho da fonte do Total baseado na altura
+            self.adjust_total_font_size()
             
             # Se o número de colunas mudou, redesenhar produtos
             if old_columns != self.current_columns:
@@ -822,6 +856,30 @@ class MainWindow(ctk.CTk):
             item_frame.grid_columnconfigure(0, weight=1)
             item_frame.grid_columnconfigure(1, weight=0)
             
+            # Funções de hover para aplicar cor azul - usar closures para capturar corretamente cada item_frame
+            def create_hover_handlers(frame, item_name):
+                def on_enter_hover(event):
+                    # Verificar se ainda não está selecionado (pode ter mudado)
+                    current_selected = (self.selected_cart_item == item_name)
+                    if not current_selected:
+                        frame.configure(border_color="#0077cc", border_width=2)
+                
+                def on_leave_hover(event):
+                    # Verificar se ainda não está selecionado (pode ter mudado)
+                    current_selected = (self.selected_cart_item == item_name)
+                    if not current_selected:
+                        frame.configure(border_color="#3a3a3a", border_width=1)
+                    else:
+                        frame.configure(border_color=COLORS["green"], border_width=2)
+                
+                return on_enter_hover, on_leave_hover
+            
+            on_enter_hover, on_leave_hover = create_hover_handlers(item_frame, name)
+            
+            # Bind eventos de hover
+            item_frame.bind("<Enter>", on_enter_hover)
+            item_frame.bind("<Leave>", on_leave_hover)
+            
             # Bind clique simples para remover uma unidade
             item_frame.bind("<Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
             # Bind duplo clique para subtrair unidade (mantido para compatibilidade)
@@ -838,6 +896,9 @@ class MainWindow(ctk.CTk):
             item_label.grid(row=0, column=0, sticky="w", padx=8, pady=8)
             item_label.bind("<Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
             item_label.bind("<Double-Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
+            # Bind hover nos labels também - usar as mesmas funções criadas
+            item_label.bind("<Enter>", on_enter_hover)
+            item_label.bind("<Leave>", on_leave_hover)
             
             price_text = f"R$ {subtotal:.2f}"
             price_label = ctk.CTkLabel(
@@ -851,6 +912,9 @@ class MainWindow(ctk.CTk):
             price_label.grid(row=0, column=1, sticky="e", padx=8, pady=8)
             price_label.bind("<Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
             price_label.bind("<Double-Button-1>", lambda e, n=name: self.decrease_item_quantity(n))
+            # Bind hover nos labels também - usar as mesmas funções criadas
+            price_label.bind("<Enter>", on_enter_hover)
+            price_label.bind("<Leave>", on_leave_hover)
         
         # Forçar atualização do scroll
         self.cart_scroll.update()
@@ -989,34 +1053,38 @@ class MainWindow(ctk.CTk):
             print(f"Erro ao abrir PDF: {e}")
     
     def generate_receipt(self, open_after=False):
-        """Gera comprovante de pagamento em PDF"""
+        """Abre diálogo para selecionar uma venda e gerar comprovante"""
         if not self.current_client:
             self.show_alert("Atenção", "Selecione um cliente primeiro!")
             return
         
-        if not self.cart:
-            self.show_alert("Atenção", "O carrinho está vazio!")
+        # Verificar se o cliente tem vendas
+        client_data = self.clients_data.get(self.current_client, {})
+        sales = client_data.get("sales", [])
+        
+        if not sales:
+            self.show_alert(
+                "Atenção",
+                f"O cliente {self.current_client} não possui vendas registradas!\n\n"
+                "Realize uma venda primeiro para poder gerar o comprovante.",
+                "warning"
+            )
             return
         
-        if not self.selected_payment:
-            self.show_alert("Atenção", "Selecione um método de pagamento!")
+        # Abrir diálogo de seleção de vendas
+        dialog = SalesSelectionDialog(
+            self,
+            self.current_client,
+            sales,
+            self.company_data,
+            client_data  # Passar dados completos do cliente
+        )
+        self.wait_window(dialog)
+    
+    def generate_receipt_for_sale(self, order, open_after=False):
+        """Gera comprovante para uma venda específica (usado após finalizar venda)"""
+        if not self.current_client:
             return
-        
-        # Construir ordem
-        items = []
-        for name, item in self.cart.items():
-            items.append({
-                "name": name,
-                "price": item["price"],
-                "quantity": item["qty"]
-            })
-        
-        order = {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "items": items,
-            "total": self.total,
-            "payment_method": self.selected_payment
-        }
         
         # Solicitar local para salvar
         client_name_safe = self.current_client.replace("/", "-").replace("\\", "-")
@@ -1037,9 +1105,9 @@ class MainWindow(ctk.CTk):
             
             client_data = self.clients_data.get(self.current_client, {})
             generate_receipt_pdf(
-                self.current_client, 
-                client_data, 
-                order, 
+                self.current_client,
+                client_data,
+                order,
                 file_path,
                 company_data=self.company_data
             )
@@ -1135,8 +1203,8 @@ class MainWindow(ctk.CTk):
         self.wait_window(dialog)
         
         if dialog.result:
-            # Gerar e abrir comprovante
-            self.generate_receipt(open_after=True)
+            # Gerar e abrir comprovante da venda recém-criada
+            self.generate_receipt_for_sale(order, open_after=True)
         
         # Limpar carrinho
         self.clear_cart()
@@ -1159,6 +1227,7 @@ class MainWindow(ctk.CTk):
             "total": order["total"],
             "paid": self.selected_payment != "Crédito Aluno",
             "date": order["timestamp"].split(" ")[0],
+            "timestamp": order["timestamp"],  # Salvar timestamp completo para cálculo de tempo
             "payment_method": order["payment_method"]
         })
         
