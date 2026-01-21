@@ -147,6 +147,9 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(right_layout, 65)
 
+    def action_export_xlsx(self):
+        pass
+    
     def open_product_manager(self):
         self.manager = ProductManager(self)
         self.manager.show()
@@ -157,7 +160,6 @@ class MainWindow(QMainWindow):
     def open_client_manager(self):
         dialog = ClientManager(self)
         dialog.exec()
-
 
     def load_products(self, grid_layout, columns=4):
         while grid_layout.count():
@@ -209,7 +211,6 @@ class MainWindow(QMainWindow):
 
         with open(self.clients_path, "r", encoding="utf-8") as f:
             return json.load(f)
-
 
     def add_to_cart(self, name, price):
         self.items_list.addItem(f"{name} - R$ {price:.2f}")
@@ -317,10 +318,10 @@ class MainWindow(QMainWindow):
                     "id": 1,
                     "items": order["items"],
                     "total": order["total"],
-                    "paid": False,
                     "date": order["timestamp"].split(" ")[0]
                 }
             ]
         }
 
         self.save_clients(data)
+        self.populate_client_box()

@@ -1,9 +1,8 @@
-import os, sys, json
-from datetime import datetime
+import json
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout,
-    QPushButton, QMessageBox, QDialog, 
-    QTableWidget, QTableWidgetItem, QCheckBox
+    QPushButton, QMessageBox, QDialog,
+    QTableWidget, QTableWidgetItem
 )
 from PySide6.QtCore import Qt
 
@@ -13,9 +12,11 @@ def load_clients():
     with open(CLIENTS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
+
 def save_clients(data):
     with open(CLIENTS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
 
 class ClientManager(QDialog):
     def __init__(self, parent=None):
@@ -28,9 +29,9 @@ class ClientManager(QDialog):
         layout = QVBoxLayout(self)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
+        self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels([
-            "Name", "Credits (R$)", "Owes (R$)", "Paid"
+            "Name", "Credits (R$)", "Owes (R$)"
         ])
         self.table.horizontalHeader().setStretchLastSection(True)
 
@@ -38,23 +39,25 @@ class ClientManager(QDialog):
 
         btn_layout = QHBoxLayout()
 
+        self.settle_btn = QPushButton("Settle Debts")
         self.save_btn = QPushButton("Save")
         self.close_btn = QPushButton("Close")
 
+        self.settle_btn.clicked.connect(self.settle_debts)
         self.save_btn.clicked.connect(self.save_changes)
         self.close_btn.clicked.connect(self.close)
 
         btn_layout.addStretch()
+        btn_layout.addWidget(self.settle_btn)
         btn_layout.addWidget(self.save_btn)
         btn_layout.addWidget(self.close_btn)
 
         layout.addLayout(btn_layout)
 
         self.load_table()
-        
+
     def load_table(self):
         self.clients = load_clients()
-        
         self.table.setRowCount(len(self.clients))
 
         for row, (name, data) in enumerate(self.clients.items()):
@@ -82,40 +85,77 @@ class ClientManager(QDialog):
             owes_item.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(row, 2, owes_item)
 
-            # Paid checkbox
-            checkbox = QCheckBox()
-
-            container = QWidget()
-            layout = QHBoxLayout(container)
-            layout.addWidget(checkbox)
-            layout.setAlignment(Qt.AlignCenter)
-            layout.setContentsMargins(0, 0, 0, 0)
-
-            self.table.setCellWidget(row, 3, container)
-
     def save_changes(self):
         self.table.clearFocus()
-        
         data = load_clients()
 
         for row in range(self.table.rowCount()):
             name = self.table.item(row, 0).text()
-
             credits = float(self.table.item(row, 1).text())
-            owes = float(self.table.item(row, 2).text())
-
-            cell_widget = self.table.cellWidget(row, 3)
-            checkbox = cell_widget.findChild(QCheckBox)
-
-            paid = checkbox.isChecked() if checkbox else False
 
             data[name]["credits"] = credits
-            data[name]["paid"] = paid
 
         save_clients(data)
 
         QMessageBox.information(
-            self, "Saved", "Client payments updated successfully."
+            self, "Saved", "Changes saved successfully."
+        )
+
+        self.load_table()
+
+    def settle_debts(self):
+        data = load_clients()
+
+        payable_clients = []
+
+        # Identifica quem pode quitar
+        for name, client in data.items():
+            credits = client.get("credits", 0.0)
+            owes = sum(
+                sale["total"]
+                for sale in client.get("sales", [])
+                if not sale.get("paid", False)
+            )
+
+            if owes > 0 and credits >= owes:
+                payable_clients.append((name, credits, owes))
+
+        if not payable_clients:
+            QMessageBox.information(
+                self,
+                "Nothing to Settle",
+                "No clients have enough credits to settle their debts."
+            )
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Settle Debts",
+            (
+                f"{len(payable_clients)} client(s) can have their debts settled.\n\n"
+                "Do you want to proceed and use credits to pay all possible debts?"
+            ),
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply != QMessageBox.Yes:
+            return
+
+        # Aplica abatimento
+        for name, credits, owes in payable_clients:
+            client = data[name]
+
+            client["credits"] = round(credits - owes, 2)
+
+            for sale in client.get("sales", []):
+                sale["paid"] = True
+
+        save_clients(data)
+
+        QMessageBox.information(
+            self,
+            "Done",
+            "Debts settled successfully."
         )
 
         self.load_table()
