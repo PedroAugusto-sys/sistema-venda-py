@@ -5,8 +5,19 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QPalette
 
 CLIENTS_FILE = "data/clients.json"
+
+# Cores do tema escuro
+COLORS = {
+    "bg_dark": "#242424",
+    "bg_panel": "#2b2b2b",
+    "green": "#2ed573",
+    "red": "#ff4757",
+    "text_light": "#ffffff",
+    "text_gray": "#a0a0a0"
+}
 
 def load_clients():
     with open(CLIENTS_FILE, "r", encoding="utf-8") as f:
@@ -21,27 +32,119 @@ def save_clients(data):
 class ClientManager(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Manage Clients")
+        self.setWindowTitle("Gerenciar Clientes")
         self.resize(600, 400)
+        
+        # Aplicar tema escuro
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {COLORS["bg_dark"]};
+                color: {COLORS["text_light"]};
+            }}
+            QTableWidget {{
+                background-color: {COLORS["bg_panel"]};
+                color: {COLORS["text_light"]};
+                border: 1px solid #3a3a3a;
+                gridline-color: #3a3a3a;
+            }}
+            QHeaderView::section {{
+                background-color: {COLORS["bg_panel"]};
+                color: {COLORS["text_light"]};
+                padding: 8px;
+                border: none;
+                border-bottom: 2px solid {COLORS["green"]};
+            }}
+            QTableWidget::item {{
+                background-color: {COLORS["bg_panel"]};
+                color: {COLORS["text_light"]};
+                padding: 5px;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {COLORS["green"]};
+                color: {COLORS["bg_dark"]};
+            }}
+            QPushButton {{
+                background-color: {COLORS["bg_panel"]};
+                color: {COLORS["text_light"]};
+                border: none;
+                padding: 10px 20px;
+                border-radius: 15px;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #333333;
+            }}
+            QPushButton:pressed {{
+                background-color: #1a1a1a;
+            }}
+        """)
 
         self.clients = load_clients()
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
 
         self.table = QTableWidget()
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels([
-            "Name", "Credits (R$)", "Owes (R$)"
+            "Nome", "Créditos (R$)", "Deve (R$)"
         ])
         self.table.horizontalHeader().setStretchLastSection(True)
 
         layout.addWidget(self.table)
 
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
 
-        self.settle_btn = QPushButton("Settle Debts")
-        self.save_btn = QPushButton("Save")
-        self.close_btn = QPushButton("Close")
+        self.settle_btn = QPushButton("Quitar Dívidas")
+        self.settle_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS["green"]};
+                color: {COLORS["bg_dark"]};
+                border: none;
+                padding: 10px 20px;
+                border-radius: 15px;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #26c463;
+            }}
+        """)
+        
+        self.save_btn = QPushButton("Salvar")
+        self.save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS["green"]};
+                color: {COLORS["bg_dark"]};
+                border: none;
+                padding: 10px 20px;
+                border-radius: 15px;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #26c463;
+            }}
+        """)
+        
+        self.close_btn = QPushButton("Fechar")
+        self.close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS["bg_panel"]};
+                color: {COLORS["text_light"]};
+                border: none;
+                padding: 10px 20px;
+                border-radius: 15px;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #333333;
+            }}
+        """)
 
         self.settle_btn.clicked.connect(self.settle_debts)
         self.save_btn.clicked.connect(self.save_changes)
@@ -97,9 +200,28 @@ class ClientManager(QDialog):
 
         save_clients(data)
 
-        QMessageBox.information(
-            self, "Saved", "Changes saved successfully."
-        )
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Salvo")
+        msg.setText("Alterações salvas com sucesso.")
+        msg.setIcon(QMessageBox.Information)
+        msg.setStyleSheet(f"""
+            QMessageBox {{
+                background-color: {COLORS["bg_dark"]};
+                color: {COLORS["text_light"]};
+            }}
+            QPushButton {{
+                background-color: {COLORS["green"]};
+                color: {COLORS["bg_dark"]};
+                border: none;
+                padding: 8px 20px;
+                border-radius: 10px;
+                min-width: 80px;
+            }}
+            QPushButton:hover {{
+                background-color: #26c463;
+            }}
+        """)
+        msg.exec()
 
         self.load_table()
 
@@ -121,22 +243,56 @@ class ClientManager(QDialog):
                 payable_clients.append((name, credits, owes))
 
         if not payable_clients:
-            QMessageBox.information(
-                self,
-                "Nothing to Settle",
-                "No clients have enough credits to settle their debts."
-            )
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Nada para Quitar")
+            msg.setText("Nenhum cliente possui créditos suficientes para quitar suas dívidas.")
+            msg.setIcon(QMessageBox.Information)
+            msg.setStyleSheet(f"""
+                QMessageBox {{
+                    background-color: {COLORS["bg_dark"]};
+                    color: {COLORS["text_light"]};
+                }}
+                QPushButton {{
+                    background-color: {COLORS["green"]};
+                    color: {COLORS["bg_dark"]};
+                    border: none;
+                    padding: 8px 20px;
+                    border-radius: 10px;
+                    min-width: 80px;
+                }}
+                QPushButton:hover {{
+                    background-color: #26c463;
+                }}
+            """)
+            msg.exec()
             return
 
-        reply = QMessageBox.question(
-            self,
-            "Settle Debts",
-            (
-                f"{len(payable_clients)} client(s) can have their debts settled.\n\n"
-                "Do you want to proceed and use credits to pay all possible debts?"
-            ),
-            QMessageBox.Yes | QMessageBox.No
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Quitar Dívidas")
+        msg.setText(
+            f"{len(payable_clients)} cliente(s) podem ter suas dívidas quitadas.\n\n"
+            "Deseja prosseguir e usar os créditos para pagar todas as dívidas possíveis?"
         )
+        msg.setIcon(QMessageBox.Question)
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setStyleSheet(f"""
+            QMessageBox {{
+                background-color: {COLORS["bg_dark"]};
+                color: {COLORS["text_light"]};
+            }}
+            QPushButton {{
+                background-color: {COLORS["green"]};
+                color: {COLORS["bg_dark"]};
+                border: none;
+                padding: 8px 20px;
+                border-radius: 10px;
+                min-width: 80px;
+            }}
+            QPushButton:hover {{
+                background-color: #26c463;
+            }}
+        """)
+        reply = msg.exec()
 
         if reply != QMessageBox.Yes:
             return
@@ -152,10 +308,27 @@ class ClientManager(QDialog):
 
         save_clients(data)
 
-        QMessageBox.information(
-            self,
-            "Done",
-            "Debts settled successfully."
-        )
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Concluído")
+        msg.setText("Dívidas quitadas com sucesso.")
+        msg.setIcon(QMessageBox.Information)
+        msg.setStyleSheet(f"""
+            QMessageBox {{
+                background-color: {COLORS["bg_dark"]};
+                color: {COLORS["text_light"]};
+            }}
+            QPushButton {{
+                background-color: {COLORS["green"]};
+                color: {COLORS["bg_dark"]};
+                border: none;
+                padding: 8px 20px;
+                border-radius: 10px;
+                min-width: 80px;
+            }}
+            QPushButton:hover {{
+                background-color: #26c463;
+            }}
+        """)
+        msg.exec()
 
         self.load_table()

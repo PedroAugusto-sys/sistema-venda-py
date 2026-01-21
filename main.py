@@ -1,12 +1,15 @@
 import sys
-from PySide6.QtWidgets import QApplication
+import customtkinter as ctk
 from ui.main_window import MainWindow
 
 def main():
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+    # Inicializar CustomTkinter
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
     
+    # Criar e executar aplicação
+    app = MainWindow()
+    app.mainloop()
+
 if __name__ == "__main__":
     main()
